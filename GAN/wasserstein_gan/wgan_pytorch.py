@@ -11,14 +11,19 @@ from torch.autograd import Variable
 from tensorflow.examples.tutorials.mnist import input_data
 
 
-mnist = input_data.read_data_sets('../../MNIST_data', one_hot=True)
-mb_size = 32
+mnist = input_data.read_data_sets('/root/source/examples/data', one_hot=True)
+mb_size = 64
 z_dim = 10
 X_dim = mnist.train.images.shape[1]
 y_dim = mnist.train.labels.shape[1]
 h_dim = 128
 cnt = 0
 lr = 1e-4
+
+if torch.cuda.is_available():
+    use_cuda = True;
+else:
+    use_cuda = False;
 
 
 G = torch.nn.Sequential(
@@ -35,6 +40,9 @@ D = torch.nn.Sequential(
     torch.nn.Linear(h_dim, 1),
 )
 
+if use_cuda:
+    G = G.cuda();
+    D = D.cuda();
 
 def reset_grad():
     G.zero_grad()
@@ -52,6 +60,9 @@ for it in range(1000000):
         X, _ = mnist.train.next_batch(mb_size)
         X = Variable(torch.from_numpy(X))
 
+        if use_cuda:
+            z = z.cuda();
+            X = X.cuda();
         # Dicriminator forward-loss-backward-update
         G_sample = G(z)
         D_real = D(X)
@@ -73,7 +84,11 @@ for it in range(1000000):
     X, _ = mnist.train.next_batch(mb_size)
     X = Variable(torch.from_numpy(X))
     z = Variable(torch.randn(mb_size, z_dim))
-
+    
+    if use_cuda:
+        z = z.cuda();
+        X = X.cuda();
+        
     G_sample = G(z)
     D_fake = D(G_sample)
 
@@ -85,12 +100,19 @@ for it in range(1000000):
     # Housekeeping - reset gradient
     reset_grad()
 
+    if use_cuda:
+        D_loss = D_loss.cpu();
+        G_loss = G_loss.cpu();
+        
     # Print and plot every now and then
     if it % 1000 == 0:
         print('Iter-{}; D_loss: {}; G_loss: {}'
               .format(it, D_loss.data.numpy(), G_loss.data.numpy()))
 
-        samples = G(z).data.numpy()[:16]
+        if use_cuda:
+            samples = G(z).cpu().data.numpy()[:16]
+        else:
+            samples = G(z).data.numpy()[:16]
 
         fig = plt.figure(figsize=(4, 4))
         gs = gridspec.GridSpec(4, 4)
